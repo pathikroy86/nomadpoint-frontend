@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@heroui/styles";
 
 :root {
   --background: #ffffff;
@@ -8,8 +9,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: Inter, "Segoe UI", Arial, Helvetica, sans-serif;
+  --font-mono: "Courier New", Courier, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +23,43 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a,
+button,
+input,
+select {
+  transition-duration: 180ms;
+}
+
+input,
+select {
+  outline: none;
+}
+
+@media (max-width: 430px) {
+  .xs\:grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .xs\:flex-row {
+    flex-direction: column;
+  }
+
+  .xs\:items-center {
+    align-items: flex-start;
+  }
+
+  .xs\:justify-between {
+    justify-content: flex-start;
+  }
 }
