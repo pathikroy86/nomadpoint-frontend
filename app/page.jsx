@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { Button, Card, Chip, ProgressCircle, Slider } from "@heroui/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { authClient } from "./lib/auth-client";
-
-const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+import { fetchCountries } from "./lib/countries";
 
 const features = [
   ["01", "Destination recommender", "Weighted matching explains why each country fits your passport, work hours, and lifestyle."],
@@ -26,21 +24,17 @@ export default function Home() {
 
   useEffect(() => {
     async function loadCountries() {
-      const response = await fetch(`${backendUrl}/api/countries`);
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
+      try {
+        const nextCountries = await fetchCountries();
+        setCountries(nextCountries);
+        setSelectedCountryId(nextCountries[0]?.id || "");
+        setLoadStatus({ type: "ready", message: "" });
+      } catch (error) {
         setLoadStatus({
           type: "error",
-          message: payload?.message || "Country data could not be loaded from MongoDB.",
+          message: error.message,
         });
-        return;
       }
-
-      const nextCountries = payload?.countries || [];
-      setCountries(nextCountries);
-      setSelectedCountryId(nextCountries[0]?.id || "");
-      setLoadStatus({ type: "ready", message: "" });
     }
 
     loadCountries();
@@ -78,17 +72,7 @@ export default function Home() {
     <main className="min-h-screen overflow-hidden bg-[#07111f] font-sans text-[#eef7ff]">
       <section className="relative isolate">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_78%_10%,rgba(54,215,255,.2),transparent_27%),radial-gradient(circle_at_14%_82%,rgba(163,255,111,.14),transparent_25%)]" />
-        <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:py-7">
-          <Brand />
-          <div className="hidden items-center gap-7 text-sm font-semibold text-[#8fa8c2] md:flex">
-            <Link href="/countries" className="hover:text-white">Countries</Link>
-            <a href="#features" className="hover:text-white">Features</a>
-            <a href="#proof" className="hover:text-white">Live data</a>
-          </div>
-          <NavbarActions />
-        </nav>
-
-        <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 pb-16 pt-8 sm:px-6 md:pb-20 lg:grid-cols-[1fr_.92fr] lg:pb-28 lg:pt-14">
+        <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 pb-16 pt-12 sm:px-6 md:pb-20 lg:grid-cols-[1fr_.92fr] lg:pb-28 lg:pt-16">
           <div>
             <div className="inline-flex rounded-full border border-[#233b57] bg-[#0e1e32]/80 px-4 py-2 text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">
               Remote work country finder
@@ -133,8 +117,8 @@ export default function Home() {
       <section id="countries" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:py-16">
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">MongoDB country data</p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Shortlist-ready country cards</h2>
+            <p className="text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">Country data</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Shortlist-ready countries</h2>
           </div>
           <div className="max-w-xl">
             <p className="leading-7 text-[#8fa8c2]">
@@ -153,11 +137,10 @@ export default function Home() {
 
         <div className="grid auto-rows-fr gap-5 md:grid-cols-2 lg:grid-cols-3">
           {previewCountries.map((country) => (
-            <Button
+            <Link
               key={country.id}
-              type="button"
-              onPress={() => setSelectedCountryId(country.id)}
-              className="group h-full min-h-[360px] w-full min-w-0 items-stretch justify-start overflow-hidden rounded-[22px] border border-[#233b57] bg-[linear-gradient(145deg,rgba(20,39,64,.9),rgba(11,26,44,.9))] p-0 text-left text-white shadow-[0_24px_70px_rgba(0,0,0,.24)] hover:-translate-y-2 hover:border-[#36d7ff]/70 sm:min-h-[342px]"
+              href={`/countries/${country.id}`}
+              className="group flex h-full min-h-[392px] w-full min-w-0 items-stretch justify-start overflow-hidden rounded-[22px] border border-[#233b57] bg-[linear-gradient(145deg,rgba(20,39,64,.9),rgba(11,26,44,.9))] p-0 text-left text-white shadow-[0_24px_70px_rgba(0,0,0,.24)] hover:-translate-y-2 hover:border-[#36d7ff]/70 sm:min-h-[372px]"
             >
               <span className="flex h-full w-full min-w-0 flex-col">
                 <span className={`block h-20 shrink-0 ${country.accent} opacity-85 transition sm:h-24`} />
@@ -177,9 +160,12 @@ export default function Home() {
                     <Metric label="Visa route" value={country.hasVisaRoute ? "Available" : country.visaStatus || "Review needed"} />
                     <Metric label="Currency" value={country.currency || "Not listed"} />
                   </span>
+                  <span className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-[#36d7ff] px-4 py-3 text-sm font-black text-[#06111f] group-hover:bg-[#a3ff6f]">
+                    View details
+                  </span>
                 </span>
               </span>
-            </Button>
+            </Link>
           ))}
         </div>
       </section>
@@ -238,9 +224,7 @@ export default function Home() {
                 be applied against the country records already in MongoDB.
               </p>
             </div>
-            <Link href="/register" className="mt-8 inline-flex justify-center rounded-2xl bg-[#a3ff6f] px-6 py-4 text-center font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#36d7ff]">
-              Build my profile
-            </Link>
+            <BuildProfileButton />
           </div>
         </div>
       </section>
@@ -248,76 +232,17 @@ export default function Home() {
   );
 }
 
-function Brand() {
-  return (
-    <Link href="/" className="flex items-center gap-3 font-black tracking-tight">
-      <span className="grid size-10 place-items-center rounded-2xl bg-[#36d7ff] text-[#06111f] shadow-[0_12px_35px_rgba(54,215,255,.25)]">
-        N
-      </span>
-      <span>NomadPoint</span>
-    </Link>
-  );
-}
-
-function NavbarActions() {
-  const router = useRouter();
+function BuildProfileButton() {
   const { data: session, isPending } = authClient.useSession();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const userName = session?.user?.name || session?.user?.email || "";
-
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    await authClient.signOut();
-    router.push("/");
-    router.refresh();
-    setIsLoggingOut(false);
-  }
-
-  if (isPending) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="h-10 w-28 rounded-xl border border-[#233b57] bg-[#0e1e32]" />
-        <span className="h-10 w-24 rounded-xl bg-[#132941]" />
-      </div>
-    );
-  }
-
-  if (session?.user) {
-    return (
-      <div className="flex max-w-[58vw] items-center gap-2 sm:max-w-none sm:gap-3">
-        <Link
-          href="/profile"
-          className="hidden min-w-0 rounded-xl border border-[#233b57] bg-[#0e1e32] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:block"
-        >
-          <span className="block max-w-36 truncate">Hi, {userName}</span>
-        </Link>
-        <Link
-          href="/profile"
-          className="rounded-xl border border-[#233b57] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:px-4"
-        >
-          Profile
-        </Link>
-        <Button
-          type="button"
-          isDisabled={isLoggingOut}
-          onPress={handleLogout}
-          className="rounded-xl bg-[#ff7896] px-3 py-2 text-sm font-black text-[#06111f] hover:-translate-y-0.5 hover:bg-[#a3ff6f] sm:px-4"
-        >
-          {isLoggingOut ? "Logging out..." : "Logout"}
-        </Button>
-      </div>
-    );
-  }
+  const isLoggedIn = Boolean(session?.user);
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
-      <Link href="/login" className="rounded-xl border border-[#233b57] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:px-4">
-        Login
-      </Link>
-      <Link href="/register" className="rounded-xl bg-[#36d7ff] px-3 py-2 text-sm font-black text-[#06111f] hover:-translate-y-0.5 hover:bg-[#a3ff6f] sm:px-4">
-        Register
-      </Link>
-    </div>
+    <Link
+      href={isLoggedIn ? "/profile" : "/register"}
+      className="mt-8 inline-flex justify-center rounded-2xl bg-[#a3ff6f] px-6 py-4 text-center font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#36d7ff]"
+    >
+      {isPending ? "Checking profile..." : isLoggedIn ? "Edit my profile" : "Build my profile"}
+    </Link>
   );
 }
 

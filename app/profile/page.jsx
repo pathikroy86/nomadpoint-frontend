@@ -28,6 +28,8 @@ const priorityOptions = [
   "Community",
 ];
 
+const maxPictureSize = 5_000_000;
+
 export default function ProfilePage() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
@@ -35,7 +37,7 @@ export default function ProfilePage() {
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isUploadingPicture, setIsUploadingPicture] = useState(false);
 
   const initials = useMemo(() => {
     const name = profile.name || session?.user?.name || "NP";
@@ -103,27 +105,62 @@ export default function ProfilePage() {
     });
   }
 
-  function handlePictureChange(event) {
+  async function handlePictureChange(event) {
     const file = event.target.files?.[0];
 
     if (!file) {
       return;
     }
 
-    if (file.size > 1_000_000) {
+    if (!file.type.startsWith("image/")) {
       setStatus({
         type: "error",
-        message: "Use an image under 1 MB for this demo profile.",
+        message: "Please choose a valid image file.",
       });
+      event.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      updateProfile("profilePicture", String(reader.result || ""));
-      setStatus({ type: "idle", message: "" });
-    };
-    reader.readAsDataURL(file);
+    if (file.size > maxPictureSize) {
+      setStatus({
+        type: "error",
+        message: "Use an image under 5 MB for your profile picture.",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", file);
+    setIsUploadingPicture(true);
+    setStatus({ type: "idle", message: "Uploading profile picture..." });
+
+    try {
+      const response = await fetch("/api/profile-picture", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.url) {
+        setStatus({
+          type: "error",
+          message: payload?.message || "Profile picture could not be uploaded.",
+        });
+        return;
+      }
+
+      updateProfile("profilePicture", payload.url);
+      setStatus({ type: "success", message: "Profile picture uploaded. Save your profile to keep it." });
+    } catch (error) {
+      setStatus({
+        type: "error",
+        message: error.message || "Profile picture could not be uploaded.",
+      });
+    } finally {
+      setIsUploadingPicture(false);
+      event.target.value = "";
+    }
   }
 
   async function handleSave(event) {
@@ -159,13 +196,6 @@ export default function ProfilePage() {
     setProfile({ ...emptyProfile, ...payload.profile });
     setStatus({ type: "success", message: "Profile saved. Your preferences are ready for the cockpit." });
     setIsSaving(false);
-    router.refresh();
-  }
-
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    await authClient.signOut();
-    router.push("/");
     router.refresh();
   }
 
@@ -205,24 +235,7 @@ export default function ProfilePage() {
 
   return (
     <main className="min-h-screen bg-[#07111f] font-sans text-[#eef7ff]">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-5 sm:px-6">
-        <Brand />
-        <div className="flex items-center gap-2">
-          <Link href="/" className="rounded-xl border border-[#233b57] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:px-4">
-            Home
-          </Link>
-          <Button
-            type="button"
-            isDisabled={isLoggingOut}
-            onPress={handleLogout}
-            className="rounded-xl bg-[#ff7896] px-3 py-2 text-sm font-black text-[#06111f] hover:-translate-y-0.5 hover:bg-[#a3ff6f] sm:px-4"
-          >
-            {isLoggingOut ? "Logging out..." : "Logout"}
-          </Button>
-        </div>
-      </nav>
-
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 pb-16 pt-4 sm:px-6 lg:grid-cols-[.78fr_1.22fr] lg:pb-24 lg:pt-10">
+      <section className="mx-auto grid max-w-7xl gap-6 px-4 pb-16 pt-12 sm:px-6 lg:grid-cols-[.78fr_1.22fr] lg:pb-24 lg:pt-16">
         <aside className="space-y-5">
           <Card className="overflow-hidden rounded-[28px] border border-[#233b57] bg-[linear-gradient(135deg,#0b1c31,#112943_55%,#173641)] text-white shadow-[0_24px_70px_rgba(0,0,0,.28)]">
             <div className="h-28 bg-[linear-gradient(90deg,#36d7ff,#a3ff6f,#ff7896)]" />
@@ -252,9 +265,9 @@ export default function ProfilePage() {
               <h1 className="mt-5 text-3xl font-black tracking-tight">{profile.name}</h1>
               <p className="mt-1 break-all text-sm font-semibold text-[#8fa8c2]">{profile.email}</p>
 
-              <label className="mt-6 inline-flex cursor-pointer rounded-2xl border border-[#233b57] bg-[#07111f] px-4 py-3 text-sm font-black text-[#d8eaff] hover:-translate-y-1 hover:border-[#36d7ff]">
-                Upload profile picture
-                <input type="file" accept="image/*" className="sr-only" onChange={handlePictureChange} />
+              <label className={`mt-6 inline-flex rounded-2xl border border-[#233b57] bg-[#07111f] px-4 py-3 text-sm font-black text-[#d8eaff] hover:-translate-y-1 hover:border-[#36d7ff] ${isUploadingPicture ? "cursor-wait opacity-70" : "cursor-pointer"}`}>
+                {isUploadingPicture ? "Uploading picture..." : "Upload profile picture"}
+                <input type="file" accept="image/*" className="sr-only" onChange={handlePictureChange} disabled={isUploadingPicture} />
               </label>
             </div>
           </Card>
@@ -338,7 +351,7 @@ export default function ProfilePage() {
               </p>
             ) : null}
 
-            <Button type="submit" isDisabled={isSaving} className="rounded-2xl bg-[#36d7ff] px-5 py-4 font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#a3ff6f]">
+            <Button type="submit" isDisabled={isSaving || isUploadingPicture} className="rounded-2xl bg-[#36d7ff] px-5 py-4 font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#a3ff6f]">
               {isSaving ? "Saving profile..." : "Save profile"}
             </Button>
           </form>

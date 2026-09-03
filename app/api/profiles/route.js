@@ -10,6 +10,17 @@ const editableFields = [
     "priorities",
     "profilePicture",
 ];
+const maxProfilePictureLength = 900_000;
+const profilePicturePattern = /^data:image\/(png|jpe?g|webp);base64,/i;
+
+function isProfilePictureUrl(value) {
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:" && ["ibb.co", "i.ibb.co"].includes(url.hostname);
+    } catch {
+        return false;
+    }
+}
 
 async function getSession(request) {
     return auth.api.getSession({
@@ -32,6 +43,24 @@ function normalizeProfile(profile, sessionUser) {
         priorities: Array.isArray(profile?.priorities) ? profile.priorities : [],
         profilePicture: profile?.profilePicture || "",
     };
+}
+
+function normalizeProfilePicture(value) {
+    const profilePicture = String(value || "").trim();
+
+    if (!profilePicture) {
+        return "";
+    }
+
+    if (
+        profilePicture.length > maxProfilePictureLength ||
+        (!profilePicturePattern.test(profilePicture) &&
+            !isProfilePictureUrl(profilePicture))
+    ) {
+        throw new Error("Profile picture must be a valid hosted PNG, JPG, or WebP image.");
+    }
+
+    return profilePicture;
 }
 
 export async function GET(request) {
@@ -120,6 +149,7 @@ export async function PATCH(request) {
         email,
         updatedAt: new Date(),
     };
+    let validationError = "";
 
     editableFields.forEach((field) => {
         if (body[field] === undefined) {
@@ -138,8 +168,21 @@ export async function PATCH(request) {
             return;
         }
 
+        if (field === "profilePicture") {
+            try {
+                profile.profilePicture = normalizeProfilePicture(body.profilePicture);
+            } catch (error) {
+                validationError = error.message;
+            }
+            return;
+        }
+
         profile[field] = String(body[field] || "").trim();
     });
+
+    if (validationError) {
+        return Response.json({ message: validationError }, { status: 400 });
+    }
 
     await db.collection("profiles").updateOne(
         { email },

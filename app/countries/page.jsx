@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { Button, Card, Chip, Input } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
+import { fetchCountries } from "../lib/countries";
 
-const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
 const pageSize = 6;
 
 export default function CountriesPage() {
@@ -16,19 +16,16 @@ export default function CountriesPage() {
 
   useEffect(() => {
     async function loadCountries() {
-      const response = await fetch(`${backendUrl}/api/countries`);
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
+      try {
+        const nextCountries = await fetchCountries();
+        setCountries(nextCountries);
+        setStatus({ type: "ready", message: "" });
+      } catch (error) {
         setStatus({
           type: "error",
-          message: payload?.message || "Country data could not be loaded.",
+          message: error.message,
         });
-        return;
       }
-
-      setCountries(payload?.countries || []);
-      setStatus({ type: "ready", message: "" });
     }
 
     loadCountries();
@@ -79,19 +76,7 @@ export default function CountriesPage() {
 
   return (
     <main className="min-h-screen bg-[#07111f] font-sans text-[#eef7ff]">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-5 sm:px-6 lg:py-7">
-        <Brand />
-        <div className="flex items-center gap-2">
-          <Link href="/" className="rounded-xl border border-[#233b57] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:px-4">
-            Home
-          </Link>
-          <Link href="/profile" className="rounded-xl bg-[#36d7ff] px-3 py-2 text-sm font-black text-[#06111f] hover:-translate-y-0.5 hover:bg-[#a3ff6f] sm:px-4">
-            Profile
-          </Link>
-        </div>
-      </nav>
-
-      <section className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:pb-24 lg:pt-10">
+      <section className="mx-auto max-w-7xl px-4 pb-16 pt-12 sm:px-6 lg:pb-24 lg:pt-16">
         <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr] lg:items-end">
           <div>
             <p className="text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">Country directory</p>
@@ -167,24 +152,14 @@ export default function CountriesPage() {
   );
 }
 
-function Brand() {
-  return (
-    <Link href="/" className="flex items-center gap-3 font-black tracking-tight">
-      <span className="grid size-10 place-items-center rounded-2xl bg-[#36d7ff] text-[#06111f] shadow-[0_12px_35px_rgba(54,215,255,.25)]">
-        N
-      </span>
-      <span>NomadPoint</span>
-    </Link>
-  );
-}
-
 function CountryCard({ country, index }) {
   const accents = ["bg-[#36d7ff]", "bg-[#a3ff6f]", "bg-[#ff7896]"];
   const remoteCities = country.remoteCities?.slice(0, 3) || [];
   const languages = country.languages?.slice(0, 2) || [];
 
   return (
-    <Card className="flex h-full min-h-[390px] min-w-0 overflow-hidden rounded-[22px] border border-[#233b57] bg-[linear-gradient(145deg,rgba(20,39,64,.9),rgba(11,26,44,.9))] text-white shadow-[0_24px_70px_rgba(0,0,0,.24)] hover:-translate-y-2 hover:border-[#36d7ff]/70">
+    <Link href={`/countries/${country.id}`} className="block h-full min-w-0">
+      <Card className="flex h-full min-h-[390px] min-w-0 overflow-hidden rounded-[22px] border border-[#233b57] bg-[linear-gradient(145deg,rgba(20,39,64,.9),rgba(11,26,44,.9))] text-white shadow-[0_24px_70px_rgba(0,0,0,.24)] hover:-translate-y-2 hover:border-[#36d7ff]/70">
       <div className={`h-20 shrink-0 ${accents[index % accents.length]} opacity-85`} />
       <div className="flex min-w-0 flex-1 flex-col p-5">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -220,7 +195,8 @@ function CountryCard({ country, index }) {
           ) : null}
         </div>
       </div>
-    </Card>
+      </Card>
+    </Link>
   );
 }
 
