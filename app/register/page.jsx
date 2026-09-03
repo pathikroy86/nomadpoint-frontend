@@ -2,22 +2,58 @@
 
 import Link from "next/link";
 import { Button, Card, Chip, Input } from "@heroui/react";
-import { useMemo, useState } from "react";
-
-const priorities = ["Affordable", "Fast internet", "Community", "Mild weather"];
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { authClient } from "../lib/auth-client";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [role, setRole] = useState("nomad");
-  const [selectedPriorities, setSelectedPriorities] = useState(["Affordable", "Fast internet", "Community"]);
+  const [status, setStatus] = useState({ type: "idle", message: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const progress = useMemo(() => 45 + selectedPriorities.length * 12 + (role === "expert" ? 7 : 0), [role, selectedPriorities.length]);
+  async function handleRegister(event) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setStatus({ type: "idle", message: "" });
 
-  function togglePriority(priority) {
-    setSelectedPriorities((current) =>
-      current.includes(priority)
-        ? current.filter((item) => item !== priority)
-        : [...current, priority]
-    );
+    const formData = new FormData(event.currentTarget);
+    const name = String(formData.get("name") || "").trim();
+    const email = String(formData.get("email") || "").trim().toLowerCase();
+    const password = String(formData.get("password") || "");
+
+    const { error } = await authClient.signUp.email({
+      name,
+      email,
+      password,
+    });
+
+    if (error) {
+      setStatus({ type: "error", message: error.message || "Registration failed. Please check the form and try again." });
+      setIsSubmitting(false);
+      return;
+    }
+
+    const profileResponse = await fetch("/api/profiles", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        email,
+        role,
+      }),
+    });
+
+    if (!profileResponse.ok) {
+      const profileError = await profileResponse.json().catch(() => null);
+      setStatus({ type: "error", message: profileError?.message || "Account created, but the profile could not be saved." });
+      setIsSubmitting(false);
+      return;
+    }
+
+    setStatus({ type: "success", message: "Account created. You can complete your preferences after login." });
+    router.push("/");
+    router.refresh();
   }
 
   return (
@@ -28,26 +64,27 @@ export default function RegisterPage() {
           <div className="mt-10 lg:mt-14">
             <p className="text-xs font-black uppercase tracking-[.18em] text-[#a3ff6f]">New account</p>
             <h1 className="mt-4 text-4xl font-black leading-[.98] tracking-tight sm:text-5xl">
-              Build a decision profile in one pass.
+              Start with the essentials.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-[#a9c2d9] sm:text-lg sm:leading-8">
-              Registration captures the first recommendation signals: nationality,
-              budget, work schedule, preferred regions, and lifestyle priorities.
+              Create your account with only the fields needed for authentication.
+              Once you are logged in, you can edit preferences, relocation details,
+              and other profile information from your workspace.
             </p>
           </div>
           <div className="mt-8 rounded-3xl border border-white/10 bg-[#07111f]/70 p-5">
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-sm font-black">Profile preview</span>
-              <Chip color="primary" variant="flat" className="bg-[#36d7ff]/10 text-xs font-black text-[#36d7ff]">{Math.min(progress, 96)}% ready</Chip>
+              <span className="text-sm font-black">Account preview</span>
+              <Chip color="primary" variant="flat" className="bg-[#36d7ff]/10 text-xs font-black text-[#36d7ff]">Essentials only</Chip>
             </div>
             <div className="h-2 rounded-full bg-[#071523]">
-              <div className="h-2 rounded-full bg-[linear-gradient(90deg,#36d7ff,#a3ff6f)]" style={{ width: `${Math.min(progress, 96)}%` }} />
+              <div className="h-2 w-3/5 rounded-full bg-[linear-gradient(90deg,#36d7ff,#a3ff6f)]" />
             </div>
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <PreviewItem label="Role" value={role === "nomad" ? "Nomad" : "City Expert"} />
-              <PreviewItem label="Budget" value="$2,400 / month" />
-              <PreviewItem label="Passport" value="Bangladesh" />
-              <PreviewItem label="Priorities" value={`${selectedPriorities.length} selected`} />
+              <PreviewItem label="Preferences" value="Complete after login" />
+              <PreviewItem label="Saved cities" value="Add from cockpit" />
+              <PreviewItem label="Alerts" value="Set up later" />
             </div>
           </div>
         </Card>
@@ -63,10 +100,10 @@ export default function RegisterPage() {
             </Link>
           </div>
 
-          <form className="mt-8 grid gap-5 md:grid-cols-2">
-            <Field label="Full name" value="Pathik Rahman" />
-            <Field label="Email" value="pathik@nomadpoint.app" type="email" />
-            <Field label="Password" value="nomadpoint-demo" type="password" />
+          <form className="mt-8 grid gap-5 md:grid-cols-2" onSubmit={handleRegister}>
+            <Field label="Full name" name="name" value="Pathik Rahman" />
+            <Field label="Email" name="email" value="pathik@nomadpoint.app" type="email" />
+            <Field label="Password" name="password" value="nomadpoint-demo" type="password" />
             <div className="grid gap-2 text-sm font-bold text-[#c2d7e9]">
               Role
               <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[#233b57] bg-[#07111f] p-1">
@@ -85,27 +122,13 @@ export default function RegisterPage() {
                 ))}
               </div>
             </div>
-            <Field label="Passport country" value="Bangladesh" />
-            <Field label="Monthly budget" value="$2,400" />
-            <Field label="Work schedule" value="Europe overlap" />
-            <Field label="Preferred regions" value="Europe, Southeast Asia" />
-            <div className="md:col-span-2">
-              <p className="mb-3 text-sm font-bold text-[#c2d7e9]">Top priorities</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {priorities.map((item) => (
-                  <Button
-                    key={item}
-                    type="button"
-                    onPress={() => togglePriority(item)}
-                    className={`h-auto justify-start rounded-2xl border px-4 py-3 text-left text-sm font-bold hover:-translate-y-1 ${selectedPriorities.includes(item) ? "border-[#36d7ff] bg-[#36d7ff]/12 text-white" : "border-[#233b57] bg-[#07111f] text-[#8fa8c2]"}`}
-                  >
-                    {item}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <Button type="button" className="rounded-2xl bg-[#36d7ff] px-5 py-4 font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#a3ff6f] md:col-span-2">
-              Create my first shortlist
+            {status.message ? (
+              <p className={`rounded-2xl border px-4 py-3 text-sm font-bold md:col-span-2 ${status.type === "error" ? "border-[#ff7896]/40 bg-[#ff7896]/10 text-[#ff9db2]" : "border-[#a3ff6f]/40 bg-[#a3ff6f]/10 text-[#a3ff6f]"}`}>
+                {status.message}
+              </p>
+            ) : null}
+            <Button type="submit" isDisabled={isSubmitting} className="rounded-2xl bg-[#36d7ff] px-5 py-4 font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#a3ff6f] md:col-span-2">
+              {isSubmitting ? "Creating account..." : "Create my first shortlist"}
             </Button>
           </form>
         </Card>
@@ -123,11 +146,11 @@ function Brand() {
   );
 }
 
-function Field({ label, value, type = "text" }) {
+function Field({ label, name, value, type = "text" }) {
   return (
     <label className="grid gap-2 text-sm font-bold text-[#c2d7e9]">
       {label}
-      <Input className="rounded-2xl border border-[#233b57] bg-[#07111f] px-4 py-4 text-white placeholder:text-[#59748e] focus:border-[#36d7ff]" defaultValue={value} type={type} />
+      <Input name={name} className="rounded-2xl border border-[#233b57] bg-[#07111f] px-4 py-4 text-white placeholder:text-[#59748e] focus:border-[#36d7ff]" defaultValue={value} type={type} required />
     </label>
   );
 }

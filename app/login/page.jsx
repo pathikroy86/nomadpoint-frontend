@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { Button, Card, Checkbox, Chip, Input } from "@heroui/react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { authClient } from "../lib/auth-client";
 
 const recentAlerts = [
   "Lisbon visa checklist refreshed",
@@ -8,6 +13,37 @@ const recentAlerts = [
 ];
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [rememberMe, setRememberMe] = useState(true);
+  const [status, setStatus] = useState({ type: "idle", message: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleLogin(event) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setStatus({ type: "idle", message: "" });
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") || "").trim().toLowerCase();
+    const password = String(formData.get("password") || "");
+
+    const { error } = await authClient.signIn.email({
+      email,
+      password,
+      rememberMe,
+    });
+
+    if (error) {
+      setStatus({ type: "error", message: error.message || "Login failed. Check your email and password." });
+      setIsSubmitting(false);
+      return;
+    }
+
+    setStatus({ type: "success", message: "Login successful. Opening your cockpit..." });
+    router.push("/");
+    router.refresh();
+  }
+
   return (
     <main className="min-h-screen bg-[#07111f] font-sans text-[#eef7ff]">
       <div className="grid min-h-screen lg:grid-cols-[1fr_.85fr]">
@@ -48,17 +84,22 @@ export default function LoginPage() {
               <h2 className="mt-3 text-4xl font-black tracking-tight">Login</h2>
               <p className="mt-3 leading-7 text-[#8fa8c2]">Use the fake account below to preview the future dashboard flow.</p>
 
-              <form className="mt-8 grid gap-5">
-                <Field label="Email" value="pathik@nomadpoint.app" type="email" />
-                <Field label="Password" value="nomadpoint-demo" type="password" />
+              <form className="mt-8 grid gap-5" onSubmit={handleLogin}>
+                <Field label="Email" name="email" value="pathik@nomadpoint.app" type="email" />
+                <Field label="Password" name="password" value="nomadpoint-demo" type="password" />
                 <div className="flex flex-col gap-3 text-sm xs:flex-row xs:items-center xs:justify-between">
-                  <Checkbox defaultSelected className="text-[#8fa8c2]">
+                  <Checkbox isSelected={rememberMe} onChange={setRememberMe} className="text-[#8fa8c2]">
                     Keep me signed in
                   </Checkbox>
                   <Link href="/register" className="font-bold text-[#36d7ff]">Create account</Link>
                 </div>
-                <Button type="button" className="rounded-2xl bg-[#36d7ff] px-5 py-4 font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#a3ff6f]">
-                  Open cockpit
+                {status.message ? (
+                  <p className={`rounded-2xl border px-4 py-3 text-sm font-bold ${status.type === "error" ? "border-[#ff7896]/40 bg-[#ff7896]/10 text-[#ff9db2]" : "border-[#a3ff6f]/40 bg-[#a3ff6f]/10 text-[#a3ff6f]"}`}>
+                    {status.message}
+                  </p>
+                ) : null}
+                <Button type="submit" isDisabled={isSubmitting} className="rounded-2xl bg-[#36d7ff] px-5 py-4 font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#a3ff6f]">
+                  {isSubmitting ? "Checking account..." : "Open cockpit"}
                 </Button>
                 <Button type="button" variant="bordered" className="rounded-2xl border-[#233b57] bg-[#07111f] px-5 py-4 font-black text-white hover:-translate-y-1 hover:border-[#36d7ff]">
                   Continue with Google
@@ -81,11 +122,11 @@ function Brand() {
   );
 }
 
-function Field({ label, value, type = "text" }) {
+function Field({ label, name, value, type = "text" }) {
   return (
     <label className="grid gap-2 text-sm font-bold text-[#c2d7e9]">
       {label}
-      <Input className="rounded-2xl border border-[#233b57] bg-[#07111f] px-4 py-4 text-white placeholder:text-[#59748e] focus:border-[#36d7ff]" defaultValue={value} type={type} />
+      <Input name={name} className="rounded-2xl border border-[#233b57] bg-[#07111f] px-4 py-4 text-white placeholder:text-[#59748e] focus:border-[#36d7ff]" defaultValue={value} type={type} required />
     </label>
   );
 }
