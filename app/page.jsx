@@ -2,68 +2,31 @@
 
 import Link from "next/link";
 import { Button, Card, Chip, ProgressCircle, Slider } from "@heroui/react";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { authClient } from "./lib/auth-client";
 
-const cities = [
-  {
-    name: "Lisbon",
-    country: "Portugal",
-    cost: 2180,
-    wifi: 132,
-    visa: "Digital nomad path",
-    climate: "Mild Atlantic",
-    community: 91,
-    safety: 86,
-    accent: "bg-[#36d7ff]",
-  },
-  {
-    name: "Da Nang",
-    country: "Vietnam",
-    cost: 1240,
-    wifi: 98,
-    visa: "Long-stay review",
-    climate: "Warm coastal",
-    community: 84,
-    safety: 80,
-    accent: "bg-[#a3ff6f]",
-  },
-  {
-    name: "Tbilisi",
-    country: "Georgia",
-    cost: 1520,
-    wifi: 74,
-    visa: "Flexible entry",
-    climate: "Four seasons",
-    community: 78,
-    safety: 82,
-    accent: "bg-[#ff7896]",
-  },
-];
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
 
 const features = [
-  ["01", "Destination recommender", "Weighted matching explains why each city fits your budget, work hours, and lifestyle."],
-  ["02", "Map explorer", "Filter cities by region, Wi-Fi, climate, safety, visa fit, and community type."],
-  ["03", "City intelligence", "Costs, internet, coworking, weather, safety, source links, and last-reviewed dates."],
+  ["01", "Destination recommender", "Weighted matching explains why each country fits your passport, work hours, and lifestyle."],
+  ["02", "Map explorer", "Filter countries by region, internet adoption, visa route, time zones, and remote-work city options."],
+  ["03", "Country intelligence", "Review capital cities, population, currencies, languages, official visa source links, and verification dates."],
   ["04", "Comparison workspace", "Adjust priorities and see advantages, disadvantages, and trade-offs side by side."],
-  ["05", "Living cost planner", "Estimate housing, food, transport, coworking, insurance, and leisure expenses."],
+  ["05", "Living cost planner", "Estimate housing, food, transport, coworking, insurance, and leisure expenses after choosing a country."],
   ["06", "Visa and tax notes", "Show assumptions, official source context, and planning limitations clearly."],
-];
-
-const updates = [
-  ["Lisbon rent index", "Updated 18 minutes ago", "+3%"],
-  ["Da Nang Wi-Fi score", "New source verified", "+12 Mbps"],
-  ["Portugal visa checklist", "Expert reviewed", "Fresh"],
 ];
 
 const footerLinks = {
   platform: [
-    ["Cities", "#cities"],
+    ["Countries", "/countries"],
     ["Features", "#features"],
     ["Live data", "#proof"],
   ],
   account: [
     ["Login", "/login"],
     ["Register", "/register"],
+    ["Profile", "/profile"],
   ],
   contact: [
     ["hello@nomadpoint.app", "mailto:hello@nomadpoint.app"],
@@ -80,28 +43,60 @@ const socialLinks = [
 ];
 
 export default function Home() {
-  const [budgetWeight, setBudgetWeight] = useState(72);
+  const [visaWeight, setVisaWeight] = useState(72);
   const [internetWeight, setInternetWeight] = useState(88);
-  const [selectedCity, setSelectedCity] = useState(cities[0]);
+  const [countries, setCountries] = useState([]);
+  const [selectedCountryId, setSelectedCountryId] = useState("");
+  const [loadStatus, setLoadStatus] = useState({ type: "loading", message: "" });
 
-  const rankedCities = useMemo(() => {
-    return cities
-      .map((city) => {
-        const budgetScore = Math.max(42, 100 - city.cost / 38);
-        const internetScore = Math.min(100, city.wifi / 1.4);
+  useEffect(() => {
+    async function loadCountries() {
+      const response = await fetch(`${backendUrl}/api/countries`);
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setLoadStatus({
+          type: "error",
+          message: payload?.message || "Country data could not be loaded from MongoDB.",
+        });
+        return;
+      }
+
+      const nextCountries = payload?.countries || [];
+      setCountries(nextCountries);
+      setSelectedCountryId(nextCountries[0]?.id || "");
+      setLoadStatus({ type: "ready", message: "" });
+    }
+
+    loadCountries();
+  }, []);
+
+  const rankedCountries = useMemo(() => {
+    return countries
+      .map((country) => {
+        const visaScore = country.hasVisaRoute ? 94 : 58;
+        const internetScore = Math.min(100, Math.max(35, country.internetPercent || 0));
+        const regionScore = country.remoteCities.length ? 82 : 62;
+        const freshnessScore = country.verifiedOn ? 88 : 60;
         const match = Math.round(
-          budgetScore * (budgetWeight / 220) +
-          internetScore * (internetWeight / 260) +
-          city.community * 0.18 +
-          city.safety * 0.14
+          visaScore * (visaWeight / 250) +
+          internetScore * (internetWeight / 250) +
+          regionScore * 0.16 +
+          freshnessScore * 0.12
         );
 
-        return { ...city, match: Math.min(96, Math.max(68, match)) };
+        return { ...country, match: Math.min(98, Math.max(56, match)) };
       })
       .sort((a, b) => b.match - a.match);
-  }, [budgetWeight, internetWeight]);
+  }, [countries, internetWeight, visaWeight]);
 
-  const topCity = rankedCities[0];
+  const selectedCountry =
+    rankedCountries.find((country) => country.id === selectedCountryId) ||
+    rankedCountries[0] ||
+    null;
+  const topCountry = rankedCountries[0] || null;
+  const verifiedCountries = rankedCountries.filter((country) => country.verifiedOn).length;
+  const visaRoutes = rankedCountries.filter((country) => country.hasVisaRoute).length;
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#07111f] font-sans text-[#eef7ff]">
@@ -110,32 +105,25 @@ export default function Home() {
         <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:py-7">
           <Brand />
           <div className="hidden items-center gap-7 text-sm font-semibold text-[#8fa8c2] md:flex">
-            <a href="#cities" className="hover:text-white">Cities</a>
+            <Link href="/countries" className="hover:text-white">Countries</Link>
             <a href="#features" className="hover:text-white">Features</a>
             <a href="#proof" className="hover:text-white">Live data</a>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link href="/login" className="rounded-xl border border-[#233b57] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:px-4">
-              Login
-            </Link>
-            <Link href="/register" className="rounded-xl bg-[#36d7ff] px-3 py-2 text-sm font-black text-[#06111f] hover:-translate-y-0.5 hover:bg-[#a3ff6f] sm:px-4">
-              Register
-            </Link>
-          </div>
+          <NavbarActions />
         </nav>
 
         <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 pb-16 pt-8 sm:px-6 md:pb-20 lg:grid-cols-[1fr_.92fr] lg:pb-28 lg:pt-14">
           <div>
             <div className="inline-flex rounded-full border border-[#233b57] bg-[#0e1e32]/80 px-4 py-2 text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">
-              Remote work location finder
+              Remote work country finder
             </div>
             <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[.98] tracking-tight sm:text-6xl lg:text-7xl">
-              Choose your next city with evidence, not guesswork.
+              Choose your next country with evidence, not guesswork.
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-7 text-[#a9c2d9] sm:text-lg sm:leading-8">
-              NomadPoint combines budget, internet quality, visa readiness, weather,
-              safety, time zones, and community signals into one decision cockpit
-              for digital nomads and remote teams.
+              NomadPoint combines country data, internet adoption, remote-work
+              visa availability, capitals, time zones, currencies, and verified
+              source dates into one decision cockpit.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/register" className="inline-flex justify-center rounded-2xl bg-[#36d7ff] px-6 py-4 text-center font-black text-[#06111f] shadow-[0_18px_45px_rgba(54,215,255,.25)] hover:-translate-y-1 hover:bg-[#a3ff6f]">
@@ -146,58 +134,67 @@ export default function Home() {
               </Link>
             </div>
             <div className="mt-9 grid max-w-2xl grid-cols-1 gap-3 xs:grid-cols-3 sm:grid-cols-3">
-              <Stat value="186" label="tracked cities" />
-              <Stat value="24k" label="monthly signals" />
-              <Stat value="3 min" label="first shortlist" />
+              <Stat value={rankedCountries.length || "..."} label="countries loaded" />
+              <Stat value={visaRoutes || "..."} label="visa routes" />
+              <Stat value={verifiedCountries || "..."} label="verified records" />
             </div>
           </div>
 
           <DecisionPanel
-            budgetWeight={budgetWeight}
             internetWeight={internetWeight}
-            rankedCities={rankedCities}
-            selectedCity={selectedCity}
-            setBudgetWeight={setBudgetWeight}
+            loadStatus={loadStatus}
+            rankedCountries={rankedCountries}
+            selectedCountry={selectedCountry}
             setInternetWeight={setInternetWeight}
-            setSelectedCity={setSelectedCity}
-            topCity={topCity}
+            setSelectedCountryId={setSelectedCountryId}
+            setVisaWeight={setVisaWeight}
+            topCountry={topCountry}
+            visaWeight={visaWeight}
           />
         </div>
       </section>
 
-      <section id="cities" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:py-16">
+      <section id="countries" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:py-16">
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">Interactive fake data</p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Shortlist-ready city cards</h2>
+            <p className="text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">MongoDB country data</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Shortlist-ready country cards</h2>
           </div>
           <p className="max-w-xl leading-7 text-[#8fa8c2]">
-            Change the sliders above and the matches update instantly, giving the page a preview of the future recommender.
+            Adjust visa and internet priority above. The ranking updates using the
+            records already saved for NomadPoint.
           </p>
         </div>
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {rankedCities.map((city) => (
+
+        {loadStatus.type === "error" ? (
+          <StatusCard message={loadStatus.message} />
+        ) : null}
+
+        <div className="grid auto-rows-fr gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {rankedCountries.map((country) => (
             <Button
-              key={city.name}
+              key={country.id}
               type="button"
-              onPress={() => setSelectedCity(city)}
-              className="group h-auto justify-start overflow-hidden rounded-[22px] border border-[#233b57] bg-[linear-gradient(145deg,rgba(20,39,64,.9),rgba(11,26,44,.9))] p-0 text-left text-white shadow-[0_24px_70px_rgba(0,0,0,.24)] hover:-translate-y-2 hover:border-[#36d7ff]/70"
+              onPress={() => setSelectedCountryId(country.id)}
+              className="group h-full min-h-[360px] w-full min-w-0 items-stretch justify-start overflow-hidden rounded-[22px] border border-[#233b57] bg-[linear-gradient(145deg,rgba(20,39,64,.9),rgba(11,26,44,.9))] p-0 text-left text-white shadow-[0_24px_70px_rgba(0,0,0,.24)] hover:-translate-y-2 hover:border-[#36d7ff]/70 sm:min-h-[342px]"
             >
-              <span className="block w-full">
-                <span className={`block h-24 ${city.accent} opacity-85 transition group-hover:h-28`} />
-                <span className="block p-5">
-                  <span className="flex items-start justify-between gap-4">
-                    <span>
-                      <span className="block text-2xl font-black">{city.name}</span>
-                      <span className="block text-sm font-semibold text-[#8fa8c2]">{city.country}</span>
+              <span className="flex h-full w-full min-w-0 flex-col">
+                <span className={`block h-20 shrink-0 ${country.accent} opacity-85 transition sm:h-24`} />
+                <span className="flex min-w-0 flex-1 flex-col p-5">
+                  <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                    <span className="min-w-0">
+                      <span className="block min-w-0 break-words text-xl font-black leading-tight sm:text-2xl">
+                        {country.flagEmoji ? `${country.flagEmoji} ` : ""}{country.name}
+                      </span>
+                      <span className="mt-1 block min-w-0 truncate text-sm font-semibold text-[#8fa8c2]">{country.region || country.subregion || country.officialName}</span>
                     </span>
-                    <Chip color="primary" variant="flat" className="bg-[#36d7ff]/10 text-sm font-black text-[#36d7ff]">{city.match}%</Chip>
+                    <Chip color="primary" variant="flat" className="shrink-0 bg-[#36d7ff]/10 text-sm font-black text-[#36d7ff]">{country.match}%</Chip>
                   </span>
-                  <span className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                    <Metric label="Monthly cost" value={`$${city.cost.toLocaleString()}`} />
-                    <Metric label="Internet" value={`${city.wifi} Mbps`} />
-                    <Metric label="Visa" value={city.visa} />
-                    <Metric label="Climate" value={city.climate} />
+                  <span className="mt-5 grid min-w-0 flex-1 grid-cols-1 gap-3 min-[460px]:grid-cols-2 sm:grid-cols-2">
+                    <Metric label="Capital" value={country.capital} />
+                    <Metric label="Internet use" value={formatPercent(country.internetPercent)} />
+                    <Metric label="Visa route" value={country.hasVisaRoute ? "Available" : country.visaStatus || "Review needed"} />
+                    <Metric label="Currency" value={country.currency || "Not listed"} />
                   </span>
                 </span>
               </span>
@@ -211,7 +208,8 @@ export default function Home() {
           <p className="text-xs font-black uppercase tracking-[.18em] text-[#a3ff6f]">Core platform</p>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Built around relocation decisions.</h2>
           <p className="mt-4 leading-7 text-[#8fa8c2]">
-            The landing page introduces the product promise now, while the auth pages set up the later role-based experience for nomads and city experts.
+            Country records now come from MongoDB, while authentication and profile
+            preferences stay ready for later personalized recommendations.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -232,16 +230,20 @@ export default function Home() {
       <section id="proof" className="mx-auto max-w-7xl px-4 py-14 pb-24 sm:px-6 lg:py-16">
         <div className="grid gap-6 rounded-[28px] border border-[#233b57] bg-[#0e1e32] p-4 shadow-[0_24px_70px_rgba(0,0,0,.24)] sm:p-6 lg:grid-cols-[1fr_.85fr]">
           <div className="rounded-3xl bg-[#07111f] p-5">
-            <p className="text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">City pulse</p>
-            <h2 className="mt-3 text-3xl font-black">Updates users can act on.</h2>
+            <p className="text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">Country pulse</p>
+            <h2 className="mt-3 text-3xl font-black">Database records users can act on.</h2>
             <div className="mt-6 grid gap-3">
-              {updates.map(([title, subtitle, badge]) => (
-                <div key={title} className="grid grid-cols-[1fr_auto] gap-4 rounded-2xl border border-[#233b57] bg-[#0e1e32] p-4">
+              {rankedCountries.slice(0, 3).map((country) => (
+                <div key={country.id} className="grid grid-cols-[1fr_auto] gap-4 rounded-2xl border border-[#233b57] bg-[#0e1e32] p-4">
                   <div>
-                    <strong>{title}</strong>
-                    <p className="mt-1 text-sm text-[#8fa8c2]">{subtitle}</p>
+                    <strong>{country.name} visa record</strong>
+                    <p className="mt-1 text-sm text-[#8fa8c2]">
+                      {country.visaProgram || "Remote-work route review"}{country.verifiedOn ? ` verified on ${country.verifiedOn}` : ""}
+                    </p>
                   </div>
-                  <Chip color="success" variant="flat" className="self-start bg-[#a3ff6f]/10 text-xs font-black text-[#a3ff6f]">{badge}</Chip>
+                  <Chip color="success" variant="flat" className="self-start bg-[#a3ff6f]/10 text-xs font-black text-[#a3ff6f]">
+                    {country.hasVisaRoute ? "Available" : "Check"}
+                  </Chip>
                 </div>
               ))}
             </div>
@@ -249,10 +251,10 @@ export default function Home() {
           <div className="flex flex-col justify-between rounded-3xl bg-[linear-gradient(135deg,rgba(54,215,255,.14),rgba(163,255,111,.08))] p-6">
             <div>
               <p className="text-xs font-black uppercase tracking-[.18em] text-[#a3ff6f]">Account preview</p>
-              <h3 className="mt-3 text-3xl font-black">Create a profile and get a shortlist immediately.</h3>
+              <h3 className="mt-3 text-3xl font-black">Create a profile and personalize these country rankings.</h3>
               <p className="mt-4 leading-7 text-[#a9c2d9]">
-                Fake onboarding data includes passport country, work schedule, monthly budget,
-                preferred regions, lifestyle priorities, and alert preferences.
+                User preferences are stored separately from authentication, then can
+                be applied against the country records already in MongoDB.
               </p>
             </div>
             <Link href="/register" className="mt-8 inline-flex justify-center rounded-2xl bg-[#a3ff6f] px-6 py-4 text-center font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#36d7ff]">
@@ -278,7 +280,85 @@ function Brand() {
   );
 }
 
-function DecisionPanel({ budgetWeight, internetWeight, rankedCities, selectedCity, setBudgetWeight, setInternetWeight, setSelectedCity, topCity }) {
+function NavbarActions() {
+  const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const userName = session?.user?.name || session?.user?.email || "";
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    await authClient.signOut();
+    router.push("/");
+    router.refresh();
+    setIsLoggingOut(false);
+  }
+
+  if (isPending) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="h-10 w-28 rounded-xl border border-[#233b57] bg-[#0e1e32]" />
+        <span className="h-10 w-24 rounded-xl bg-[#132941]" />
+      </div>
+    );
+  }
+
+  if (session?.user) {
+    return (
+      <div className="flex max-w-[58vw] items-center gap-2 sm:max-w-none sm:gap-3">
+        <Link
+          href="/profile"
+          className="hidden min-w-0 rounded-xl border border-[#233b57] bg-[#0e1e32] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:block"
+        >
+          <span className="block max-w-36 truncate">Hi, {userName}</span>
+        </Link>
+        <Link
+          href="/profile"
+          className="rounded-xl border border-[#233b57] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:px-4"
+        >
+          Profile
+        </Link>
+        <Button
+          type="button"
+          isDisabled={isLoggingOut}
+          onPress={handleLogout}
+          className="rounded-xl bg-[#ff7896] px-3 py-2 text-sm font-black text-[#06111f] hover:-translate-y-0.5 hover:bg-[#a3ff6f] sm:px-4"
+        >
+          {isLoggingOut ? "Logging out..." : "Logout"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 sm:gap-3">
+      <Link href="/login" className="rounded-xl border border-[#233b57] px-3 py-2 text-sm font-bold text-[#d8eaff] hover:-translate-y-0.5 hover:border-[#36d7ff] sm:px-4">
+        Login
+      </Link>
+      <Link href="/register" className="rounded-xl bg-[#36d7ff] px-3 py-2 text-sm font-black text-[#06111f] hover:-translate-y-0.5 hover:bg-[#a3ff6f] sm:px-4">
+        Register
+      </Link>
+    </div>
+  );
+}
+
+function DecisionPanel({ internetWeight, loadStatus, rankedCountries, selectedCountry, setInternetWeight, setSelectedCountryId, setVisaWeight, topCountry, visaWeight }) {
+  if (loadStatus.type === "loading") {
+    return (
+      <Card className="grid min-h-[520px] place-items-center rounded-[28px] border border-[#233b57] bg-[linear-gradient(135deg,#0b1c31,#112943_55%,#173641)] p-6 text-center text-white shadow-[0_24px_70px_rgba(0,0,0,.32)]">
+        <div>
+          <div className="mx-auto size-16 rounded-full border-4 border-[#36d7ff]/30 border-t-[#36d7ff]" />
+          <h2 className="mt-5 text-2xl font-black">Loading country data</h2>
+          <p className="mt-2 text-sm text-[#8fa8c2]">Reading your saved country records.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!topCountry || !selectedCountry) {
+    return <StatusCard message={loadStatus.message || "No country records were found in MongoDB."} />;
+  }
+
   return (
     <Card className="relative min-h-[520px] rounded-[28px] border border-[#233b57] bg-[linear-gradient(135deg,#0b1c31,#112943_55%,#173641)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.32)] sm:p-5 lg:min-h-[560px]">
       <div className="absolute inset-4 rounded-[24px] border border-[#284663] bg-[radial-gradient(circle_at_center,rgba(54,215,255,.18),transparent_46%)]" />
@@ -286,29 +366,32 @@ function DecisionPanel({ budgetWeight, internetWeight, rankedCities, selectedCit
         <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-[#07111f]/75 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[.16em] text-[#8fa8c2]">Top match</p>
-            <h2 className="mt-1 text-2xl font-black sm:text-3xl">{topCity.name}, {topCity.country}</h2>
+            <h2 className="mt-1 text-2xl font-black sm:text-3xl">
+              {topCountry.flagEmoji ? `${topCountry.flagEmoji} ` : ""}{topCountry.name}
+            </h2>
+            <p className="mt-2 text-sm font-semibold text-[#8fa8c2]">{topCountry.capital} / {topCountry.region || "Region pending"}</p>
           </div>
-          <ProgressCircle value={topCity.match} className="grid size-24 shrink-0 place-items-center text-[#36d7ff]">
+          <ProgressCircle value={topCountry.match} className="grid size-24 shrink-0 place-items-center text-[#36d7ff]">
             <ProgressCircle.Track className="size-24 -rotate-90">
               <ProgressCircle.TrackCircle className="stroke-[#263d54]" cx="48" cy="48" r="38" strokeWidth="8" fill="none" />
               <ProgressCircle.FillCircle className="stroke-[#36d7ff]" cx="48" cy="48" r="38" strokeWidth="8" fill="none" />
             </ProgressCircle.Track>
-            <span className="absolute grid size-16 place-items-center rounded-full bg-[#0d2034] text-2xl font-black text-white">{topCity.match}%</span>
+            <span className="absolute grid size-16 place-items-center rounded-full bg-[#0d2034] text-2xl font-black text-white">{topCountry.match}%</span>
           </ProgressCircle>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          {rankedCities.map((city) => (
+          {rankedCountries.slice(0, 3).map((country) => (
             <Button
-              key={city.name}
+              key={country.id}
               type="button"
-              onPress={() => setSelectedCity(city)}
-              className={`h-auto justify-start rounded-2xl border p-4 text-left text-white hover:-translate-y-1 ${selectedCity.name === city.name ? "border-[#36d7ff] bg-[#36d7ff]/10" : "border-[#233b57] bg-[#0e1e32]/90"}`}
+              onPress={() => setSelectedCountryId(country.id)}
+              className={`h-auto justify-start rounded-2xl border p-4 text-left text-white hover:-translate-y-1 ${selectedCountry.id === country.id ? "border-[#36d7ff] bg-[#36d7ff]/10" : "border-[#233b57] bg-[#0e1e32]/90"}`}
             >
               <span>
-                <strong>{city.name}</strong>
-                <span className="mt-2 block text-sm text-[#8fa8c2]">${city.cost.toLocaleString()}/mo</span>
-                <Chip color="success" variant="flat" className="mt-3 bg-[#a3ff6f]/10 text-xs font-black text-[#a3ff6f]">{city.match}% fit</Chip>
+                <strong>{country.name}</strong>
+                <span className="mt-2 block text-sm text-[#8fa8c2]">{formatPercent(country.internetPercent)} internet</span>
+                <Chip color="success" variant="flat" className="mt-3 bg-[#a3ff6f]/10 text-xs font-black text-[#a3ff6f]">{country.match}% fit</Chip>
               </span>
             </Button>
           ))}
@@ -317,16 +400,19 @@ function DecisionPanel({ budgetWeight, internetWeight, rankedCities, selectedCit
         <div className="rounded-2xl border border-[#233b57] bg-[#0e1e32]/90 p-5">
           <div className="mb-5 flex items-center justify-between">
             <p className="text-sm font-black">Tune your decision</p>
-            <Chip color="success" variant="flat" className="bg-[#a3ff6f]/10 text-xs font-bold text-[#a3ff6f]">Live preview</Chip>
+            <Chip color="success" variant="flat" className="bg-[#a3ff6f]/10 text-xs font-bold text-[#a3ff6f]">Live data</Chip>
           </div>
-          <TuneSlider label="Budget importance" value={budgetWeight} onChange={setBudgetWeight} />
-          <TuneSlider label="Internet importance" value={internetWeight} onChange={setInternetWeight} />
+          <TuneSlider label="Visa readiness importance" value={visaWeight} onChange={setVisaWeight} />
+          <TuneSlider label="Internet access importance" value={internetWeight} onChange={setInternetWeight} />
         </div>
 
         <div className="rounded-2xl border border-[#36d7ff]/30 bg-[#07111f]/80 p-4">
-          <p className="text-xs font-black uppercase tracking-[.16em] text-[#36d7ff]">Selected city</p>
+          <p className="text-xs font-black uppercase tracking-[.16em] text-[#36d7ff]">Selected country</p>
           <p className="mt-2 text-sm leading-6 text-[#c2d7e9]">
-            {selectedCity.name} gives you {selectedCity.wifi} Mbps internet, a {selectedCity.visa.toLowerCase()}, and a {selectedCity.climate.toLowerCase()} climate profile.
+            {selectedCountry.name} lists {selectedCountry.capital} as its capital,
+            {selectedCountry.currency ? ` uses ${selectedCountry.currency},` : ""}
+            {selectedCountry.timeZones.length ? ` includes ${selectedCountry.timeZones.length} time zone${selectedCountry.timeZones.length === 1 ? "" : "s"},` : ""}
+            and has {selectedCountry.hasVisaRoute ? "a dedicated remote-work visa route" : "a visa route that needs review"}.
           </p>
         </div>
       </div>
@@ -349,6 +435,15 @@ function TuneSlider({ label, value, onChange }) {
   );
 }
 
+function StatusCard({ message }) {
+  return (
+    <Card className="rounded-[28px] border border-[#ff7896]/40 bg-[#ff7896]/10 p-6 text-[#ffb3c4]">
+      <strong className="block text-lg">Country data unavailable</strong>
+      <span className="mt-2 block text-sm leading-6">{message}</span>
+    </Card>
+  );
+}
+
 function Stat({ value, label }) {
   return (
     <Card className="rounded-2xl border border-[#233b57] bg-[#0e1e32]/70 p-4 text-white hover:-translate-y-1 hover:border-[#36d7ff]/60">
@@ -360,9 +455,9 @@ function Stat({ value, label }) {
 
 function Metric({ label, value }) {
   return (
-    <Card className="rounded-xl bg-[#07111f]/60 p-3 text-white shadow-none">
+    <Card className="min-h-[82px] min-w-0 rounded-xl bg-[#07111f]/60 p-3 text-white shadow-none">
       <span className="block text-[11px] font-bold text-[#8fa8c2]">{label}</span>
-      <strong className="mt-1 block text-sm">{value}</strong>
+      <strong className="mt-1 block min-w-0 overflow-hidden text-ellipsis break-words text-sm leading-5">{value}</strong>
     </Card>
   );
 }
@@ -374,8 +469,8 @@ function Footer() {
         <div>
           <Brand />
           <p className="mt-4 max-w-sm text-sm leading-7 text-[#8fa8c2]">
-            One planning point for remote workers comparing cost, visas, internet,
-            climate, safety, and community before choosing a new city.
+            One planning point for remote workers comparing countries, visas,
+            internet, time zones, and source-backed relocation data.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             {socialLinks.map(([label, href, icon]) => (
@@ -399,7 +494,7 @@ function Footer() {
       </div>
 
       <div className="mx-auto mt-8 flex max-w-7xl flex-col gap-3 border-t border-[#233b57] pt-6 text-sm text-[#59748e] sm:flex-row sm:items-center sm:justify-between">
-        <p>Copyright 2026 NomadPoint. Demo landing experience.</p>
+        <p>Copyright 2026 NomadPoint. Data-backed preview.</p>
         <div className="flex flex-wrap gap-4">
           <a href="#" className="hover:text-[#36d7ff]">Privacy</a>
           <a href="#" className="hover:text-[#36d7ff]">Terms</a>
@@ -444,4 +539,8 @@ function SocialIcon({ icon }) {
       <path fill="currentColor" d={paths[icon]} />
     </svg>
   );
+}
+
+function formatPercent(value) {
+  return value ? `${value}%` : "Not listed";
 }

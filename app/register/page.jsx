@@ -51,8 +51,8 @@ export default function RegisterPage() {
       return;
     }
 
-    setStatus({ type: "success", message: "Account created. You can complete your preferences after login." });
-    router.push("/");
+    setStatus({ type: "success", message: "Account created. Opening your profile editor..." });
+    router.push("/profile");
     router.refresh();
   }
 
@@ -101,9 +101,9 @@ export default function RegisterPage() {
           </div>
 
           <form className="mt-8 grid gap-5 md:grid-cols-2" onSubmit={handleRegister}>
-            <Field label="Full name" name="name" value="Pathik Rahman" />
-            <Field label="Email" name="email" value="pathik@nomadpoint.app" type="email" />
-            <Field label="Password" name="password" value="nomadpoint-demo" type="password" />
+            <Field label="Full name" name="name" placeholder="Your full name" />
+            <Field label="Email" name="email" placeholder="you@example.com" type="email" />
+            <Field label="Password" name="password" placeholder="Create a password" type="password" />
             <div className="grid gap-2 text-sm font-bold text-[#c2d7e9]">
               Role
               <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[#233b57] bg-[#07111f] p-1">
@@ -146,11 +146,11 @@ function Brand() {
   );
 }
 
-function Field({ label, name, value, type = "text" }) {
+function Field({ label, name, placeholder, type = "text" }) {
   return (
     <label className="grid gap-2 text-sm font-bold text-[#c2d7e9]">
       {label}
-      <Input name={name} className="rounded-2xl border border-[#233b57] bg-[#07111f] px-4 py-4 text-white placeholder:text-[#59748e] focus:border-[#36d7ff]" defaultValue={value} type={type} required />
+      <Input name={name} className="rounded-2xl border border-[#233b57] bg-[#07111f] px-4 py-4 text-white placeholder:text-[#59748e] focus:border-[#36d7ff]" placeholder={placeholder} type={type} required />
     </label>
   );
 }
