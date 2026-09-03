@@ -5,29 +5,33 @@ import { Button, Card, Chip, ProgressCircle, Slider } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
 import { authClient } from "./lib/auth-client";
 import { fetchCountries } from "./lib/countries";
-
-const features = [
-  ["01", "Destination recommender", "Weighted matching explains why each country fits your passport, work hours, and lifestyle."],
-  ["02", "Map explorer", "Filter countries by region, internet adoption, visa route, time zones, and remote-work city options."],
-  ["03", "Country intelligence", "Review capital cities, population, currencies, languages, official visa source links, and verification dates."],
-  ["04", "Comparison workspace", "Adjust priorities and see advantages, disadvantages, and trade-offs side by side."],
-  ["05", "Living cost planner", "Estimate housing, food, transport, coworking, insurance, and leisure expenses after choosing a country."],
-  ["06", "Visa and tax notes", "Show assumptions, official source context, and planning limitations clearly."],
-];
+import { features } from "./lib/features";
+import { fetchProfile, recommendCountries } from "./lib/recommender";
 
 export default function Home() {
   const [visaWeight, setVisaWeight] = useState(72);
   const [internetWeight, setInternetWeight] = useState(88);
   const [countries, setCountries] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [selectedCountryId, setSelectedCountryId] = useState("");
   const [loadStatus, setLoadStatus] = useState({ type: "loading", message: "" });
 
   useEffect(() => {
     async function loadCountries() {
       try {
-        const nextCountries = await fetchCountries();
+        const [countryResult, profileResult] = await Promise.allSettled([
+          fetchCountries(),
+          fetchProfile(),
+        ]);
+
+        if (countryResult.status === "rejected") {
+          throw countryResult.reason;
+        }
+
+        const nextCountries = countryResult.value;
         setCountries(nextCountries);
         setSelectedCountryId(nextCountries[0]?.id || "");
+        setProfile(profileResult.status === "fulfilled" ? profileResult.value : null);
         setLoadStatus({ type: "ready", message: "" });
       } catch (error) {
         setLoadStatus({
@@ -41,23 +45,11 @@ export default function Home() {
   }, []);
 
   const rankedCountries = useMemo(() => {
-    return countries
-      .map((country) => {
-        const visaScore = country.hasVisaRoute ? 94 : 58;
-        const internetScore = Math.min(100, Math.max(35, country.internetPercent || 0));
-        const regionScore = country.remoteCities.length ? 82 : 62;
-        const freshnessScore = country.verifiedOn ? 88 : 60;
-        const match = Math.round(
-          visaScore * (visaWeight / 250) +
-          internetScore * (internetWeight / 250) +
-          regionScore * 0.16 +
-          freshnessScore * 0.12
-        );
-
-        return { ...country, match: Math.min(98, Math.max(56, match)) };
-      })
-      .sort((a, b) => b.match - a.match);
-  }, [countries, internetWeight, visaWeight]);
+    return recommendCountries(countries, profile, {
+      visa: visaWeight,
+      internet: internetWeight,
+    });
+  }, [countries, internetWeight, profile, visaWeight]);
 
   const selectedCountry =
     rankedCountries.find((country) => country.id === selectedCountryId) ||
@@ -122,8 +114,8 @@ export default function Home() {
           </div>
           <div className="max-w-xl">
             <p className="leading-7 text-[#8fa8c2]">
-              Showing the top six matches from your country records. Open the full
-              directory to browse everything.
+              Showing the top six weighted matches from your profile and country
+              records. Open the full directory to browse everything.
             </p>
             <Link href="/countries" className="mt-4 inline-flex justify-center rounded-2xl bg-[#36d7ff] px-5 py-3 text-sm font-black text-[#06111f] hover:-translate-y-1 hover:bg-[#a3ff6f]">
               Show all countries
@@ -160,6 +152,9 @@ export default function Home() {
                     <Metric label="Visa route" value={country.hasVisaRoute ? "Available" : country.visaStatus || "Review needed"} />
                     <Metric label="Currency" value={country.currency || "Not listed"} />
                   </span>
+                  <span className="mt-5 block rounded-2xl border border-[#233b57] bg-[#07111f]/70 p-3 text-sm leading-6 text-[#a9c2d9]">
+                    {country.recommender?.summary}
+                  </span>
                   <span className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-[#36d7ff] px-4 py-3 text-sm font-black text-[#06111f] group-hover:bg-[#a3ff6f]">
                     View details
                   </span>
@@ -176,20 +171,22 @@ export default function Home() {
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Built around relocation decisions.</h2>
           <p className="mt-4 leading-7 text-[#8fa8c2]">
             Country records now come from MongoDB, while authentication and profile
-            preferences stay ready for later personalized recommendations.
+            preferences now power weighted destination recommendations.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          {features.map(([number, title, body]) => (
-            <Card key={title} className="rounded-2xl border border-[#233b57] bg-[#0e1e32] p-5 text-white hover:-translate-y-1 hover:border-[#36d7ff]/70">
+          {features.map((feature) => (
+            <Link key={feature.id} href="/features" className="block h-full">
+            <Card className="h-full rounded-2xl border border-[#233b57] bg-[#0e1e32] p-5 text-white hover:-translate-y-1 hover:border-[#36d7ff]/70">
               <Card.Header className="p-0">
-                <Chip color="primary" variant="flat" className="bg-[#36d7ff]/10 text-xs font-black text-[#36d7ff]">FEATURE {number}</Chip>
+                <Chip color="primary" variant="flat" className="bg-[#36d7ff]/10 text-xs font-black text-[#36d7ff]">FEATURE {feature.number}</Chip>
               </Card.Header>
               <Card.Content className="p-0 pt-3">
-                <Card.Title className="text-lg font-black text-white">{title}</Card.Title>
-                <Card.Description className="mt-2 text-sm leading-6 text-[#8fa8c2]">{body}</Card.Description>
+                <Card.Title className="text-lg font-black text-white">{feature.title}</Card.Title>
+                <Card.Description className="mt-2 text-sm leading-6 text-[#8fa8c2]">{feature.summary}</Card.Description>
               </Card.Content>
             </Card>
+            </Link>
           ))}
         </div>
       </section>
@@ -219,9 +216,9 @@ export default function Home() {
             <div>
               <p className="text-xs font-black uppercase tracking-[.18em] text-[#a3ff6f]">Account preview</p>
               <h3 className="mt-3 text-3xl font-black">Create a profile and personalize these country rankings.</h3>
-              <p className="mt-4 leading-7 text-[#a9c2d9]">
-                User preferences are stored separately from authentication, then can
-                be applied against the country records already in MongoDB.
+            <p className="mt-4 leading-7 text-[#a9c2d9]">
+                User preferences are stored separately from authentication, then
+                applied against the country records already in MongoDB.
               </p>
             </div>
             <BuildProfileButton />
@@ -318,6 +315,13 @@ function DecisionPanel({ internetWeight, loadStatus, rankedCountries, selectedCo
             {selectedCountry.timeZones.length ? ` includes ${selectedCountry.timeZones.length} time zone${selectedCountry.timeZones.length === 1 ? "" : "s"},` : ""}
             and has {selectedCountry.hasVisaRoute ? "a dedicated remote-work visa route" : "a visa route that needs review"}.
           </p>
+          <div className="mt-4 grid gap-2">
+            {(selectedCountry.recommender?.reasons || []).map((reason) => (
+              <div key={reason} className="rounded-xl border border-[#233b57] bg-[#0e1e32] px-3 py-2 text-xs font-bold leading-5 text-[#a9c2d9]">
+                {reason}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </Card>

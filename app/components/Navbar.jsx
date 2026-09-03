@@ -17,7 +17,7 @@ const navLinks = [
     },
     {
         label: "Features",
-        href: "/#features",
+        href: "/features",
     },
     {
         label: "Live data",

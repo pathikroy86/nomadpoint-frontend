@@ -3,7 +3,7 @@ import Link from "next/link";
 const footerLinks = {
   platform: [
     ["Countries", "/countries"],
-    ["Features", "/#features"],
+    ["Features", "/features"],
     ["Live data", "/#proof"],
   ],
   account: [

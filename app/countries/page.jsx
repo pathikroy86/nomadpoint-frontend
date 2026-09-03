@@ -4,11 +4,13 @@ import Link from "next/link";
 import { Button, Card, Chip, Input } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
 import { fetchCountries } from "../lib/countries";
+import { fetchProfile, recommendCountries } from "../lib/recommender";
 
 const pageSize = 6;
 
 export default function CountriesPage() {
   const [countries, setCountries] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [query, setQuery] = useState("");
   const [region, setRegion] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -17,8 +19,18 @@ export default function CountriesPage() {
   useEffect(() => {
     async function loadCountries() {
       try {
-        const nextCountries = await fetchCountries();
+        const [countryResult, profileResult] = await Promise.allSettled([
+          fetchCountries(),
+          fetchProfile(),
+        ]);
+
+        if (countryResult.status === "rejected") {
+          throw countryResult.reason;
+        }
+
+        const nextCountries = countryResult.value;
         setCountries(nextCountries);
+        setProfile(profileResult.status === "fulfilled" ? profileResult.value : null);
         setStatus({ type: "ready", message: "" });
       } catch (error) {
         setStatus({
@@ -57,9 +69,13 @@ export default function CountriesPage() {
     });
   }, [countries, query, region]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredCountries.length / pageSize));
+  const rankedCountries = useMemo(() => {
+    return recommendCountries(filteredCountries, profile);
+  }, [filteredCountries, profile]);
+
+  const totalPages = Math.max(1, Math.ceil(rankedCountries.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
-  const paginatedCountries = filteredCountries.slice(
+  const paginatedCountries = rankedCountries.slice(
     (safeCurrentPage - 1) * pageSize,
     safeCurrentPage * pageSize
   );
@@ -85,7 +101,8 @@ export default function CountriesPage() {
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-[#a9c2d9] sm:text-lg">
               Browse the countries stored in NomadPoint with visa readiness,
-              internet adoption, capitals, currencies, languages, and remote-work cities.
+              internet adoption, capitals, currencies, languages, remote-work
+              cities, and profile-weighted recommendations.
             </p>
           </div>
 
@@ -118,7 +135,7 @@ export default function CountriesPage() {
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Stat value={countries.length || "..."} label="total countries" />
-          <Stat value={`${paginatedCountries.length}/${filteredCountries.length}`} label="shown now" />
+          <Stat value={`${paginatedCountries.length}/${rankedCountries.length}`} label="shown now" />
           <Stat value={countries.filter((country) => country.hasVisaRoute).length || "0"} label="visa routes" />
         </div>
 
@@ -140,7 +157,7 @@ export default function CountriesPage() {
           ))}
         </div>
 
-        {status.type === "ready" && filteredCountries.length > pageSize ? (
+        {status.type === "ready" && rankedCountries.length > pageSize ? (
           <PaginationControls
             currentPage={safeCurrentPage}
             totalPages={totalPages}
@@ -170,7 +187,7 @@ function CountryCard({ country, index }) {
             <p className="mt-1 truncate text-sm font-semibold text-[#8fa8c2]">{country.region || country.subregion || country.officialName}</p>
           </div>
           <Chip color={country.hasVisaRoute ? "success" : "warning"} variant="flat" className="shrink-0 bg-[#36d7ff]/10 text-xs font-black text-[#36d7ff]">
-            {country.hasVisaRoute ? "Visa" : "Review"}
+            {country.match}% match
           </Chip>
         </div>
 
@@ -188,8 +205,13 @@ function CountryCard({ country, index }) {
 
         <div className="mt-auto pt-5">
           <p className="line-clamp-2 text-sm leading-6 text-[#a9c2d9]">
-            {country.visaProgram || country.visaStatus || "Visa information needs review."}
+            {country.recommender?.summary || country.visaProgram || country.visaStatus || "Visa information needs review."}
           </p>
+          {country.recommender?.reasons?.[0] ? (
+            <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-[#36d7ff]">
+              {country.recommender.reasons[0]}
+            </p>
+          ) : null}
           {country.verifiedOn ? (
             <p className="mt-2 text-xs font-bold text-[#59748e]">Verified {country.verifiedOn}</p>
           ) : null}

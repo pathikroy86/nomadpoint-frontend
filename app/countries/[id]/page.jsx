@@ -5,17 +5,29 @@ import { Button, Card, Chip } from "@heroui/react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchCountry } from "../../lib/countries";
+import { fetchProfile, scoreCountry } from "../../lib/recommender";
 
 export default function CountryDetailsPage() {
     const { id } = useParams();
     const [country, setCountry] = useState(null);
+    const [profile, setProfile] = useState(null);
     const [status, setStatus] = useState({ type: "loading", message: "" });
 
     useEffect(() => {
         async function loadCountry() {
             try {
-                const nextCountry = await fetchCountry(id);
+                const [countryResult, profileResult] = await Promise.allSettled([
+                    fetchCountry(id),
+                    fetchProfile(),
+                ]);
+
+                if (countryResult.status === "rejected") {
+                    throw countryResult.reason;
+                }
+
+                const nextCountry = countryResult.value;
                 setCountry(nextCountry);
+                setProfile(profileResult.status === "fulfilled" ? profileResult.value : null);
                 setStatus({ type: "ready", message: "" });
             } catch (error) {
                 setStatus({
@@ -29,6 +41,8 @@ export default function CountryDetailsPage() {
             loadCountry();
         }
     }, [id]);
+
+    const recommendedCountry = country ? scoreCountry(country, profile || {}) : null;
 
     if (status.type === "loading") {
         return (
@@ -70,7 +84,7 @@ export default function CountryDetailsPage() {
                                     </p>
                                 </div>
                                 <Chip color={country.hasVisaRoute ? "success" : "warning"} variant="flat" className="w-fit shrink-0 bg-[#a3ff6f]/10 text-xs font-black text-[#a3ff6f]">
-                                    {country.hasVisaRoute ? "Remote-work route available" : "Visa review needed"}
+                                    {recommendedCountry.match}% profile match
                                 </Chip>
                             </div>
 
@@ -106,6 +120,13 @@ export default function CountryDetailsPage() {
                             <TagGroup label="Remote-work cities" items={country.remoteCities} fallback="No city list yet" />
                             <TagGroup label="Languages" items={country.languages} fallback="Not listed" />
                             <TagGroup label="Time zones" items={country.timeZones} fallback="Not listed" />
+                        </InfoPanel>
+
+                        <InfoPanel title="Recommendation Reasons">
+                            <DetailRow label="Match summary" value={recommendedCountry.recommender.summary} />
+                            {(recommendedCountry.recommender.reasons || []).map((reason, index) => (
+                                <DetailRow key={reason} label={`Reason ${index + 1}`} value={reason} />
+                            ))}
                         </InfoPanel>
                     </div>
                 </div>
