@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button, Card, Chip } from "@heroui/react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import CountryFlagBanner from "../../components/CountryFlagBanner";
 import { fetchCountry } from "../../lib/countries";
 import { fetchProfile, scoreCountry } from "../../lib/recommender";
 
@@ -69,15 +70,16 @@ export default function CountryDetailsPage() {
 
                 <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_.95fr] lg:items-start">
                     <Card className="overflow-hidden rounded-[30px] border border-[#233b57] bg-[linear-gradient(135deg,#0b1c31,#112943_55%,#173641)] text-white shadow-[0_24px_70px_rgba(0,0,0,.28)]">
-                        <div className={`${country.accent} h-28 opacity-90`} />
+                        <CountryFlagBanner country={country} className="h-56 sm:h-72 lg:h-80" />
                         <div className="p-5 sm:p-8">
                             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0">
                                     <p className="text-xs font-black uppercase tracking-[.18em] text-[#36d7ff]">
                                         {country.region || "Region pending"}
                                     </p>
-                                    <h1 className="mt-4 break-words text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-                                        {country.flagEmoji ? `${country.flagEmoji} ` : ""}{country.name}
+                                    <h1 className="mt-4 flex min-w-0 items-start gap-3 break-words text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+                                        <span className="shrink-0">{country.flagEmoji}</span>
+                                        <span className="min-w-0 break-words">{country.name}</span>
                                     </h1>
                                     <p className="mt-3 text-lg font-semibold text-[#8fa8c2]">
                                         {country.officialName || country.subregion || "Official name not listed"}

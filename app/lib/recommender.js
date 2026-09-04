@@ -50,7 +50,10 @@ export function scoreCountry(country, profile, weights = defaultWeights) {
         schedule: scoreSchedule(country, profile),
         lifestyle: scoreLifestyle(country, profile),
     };
-    const totalWeight = Object.values(weights).reduce((sum, value) => sum + value, 0);
+    const activeFactors = Object.fromEntries(
+        Object.entries(factors).filter(([key]) => Number(weights[key] || 0) > 0)
+    );
+    const totalWeight = Math.max(1, Object.values(weights).reduce((sum, value) => sum + value, 0));
     const weightedTotal = Object.entries(factors).reduce((sum, [key, factor]) => {
         return sum + factor.score * (weights[key] || 0);
     }, 0);
@@ -61,8 +64,8 @@ export function scoreCountry(country, profile, weights = defaultWeights) {
         match: clamp(match, 42, 98),
         recommender: {
             factors,
-            reasons: buildReasons(factors),
-            summary: buildSummary(country, factors),
+            reasons: buildReasons(activeFactors),
+            summary: buildSummary(country, activeFactors),
         },
     };
 }

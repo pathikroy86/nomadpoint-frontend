@@ -7,6 +7,53 @@ const numberOrFallback = (value, fallback = 0) => {
     return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const flagFromCountryCode = (code) => {
+    const countryCode = compact(code).toUpperCase();
+
+    if (!/^[A-Z]{2}$/.test(countryCode)) {
+        return "";
+    }
+
+    return [...countryCode]
+        .map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0)))
+        .join("");
+};
+
+const getCountryFlag = (country) => {
+    return (
+        compact(country.flagEmoji) ||
+        compact(country.flag) ||
+        flagFromCountryCode(
+            country.iso2 ||
+            country.alpha2Code ||
+            country.countryCode ||
+            country.cca2 ||
+            country.codes?.iso2 ||
+            country.codes?.cca2
+        ) ||
+        "🌐"
+    );
+};
+
+const getCountryFlagImageUrl = (country) => {
+    return (
+        compact(country.flagImageUrl) ||
+        compact(country.flagSvgUrl) ||
+        compact(country.flags?.png) ||
+        compact(country.flags?.svg) ||
+        compact(country.flag?.png) ||
+        compact(country.flag?.svg)
+    );
+};
+
+const getMongoId = (country) => {
+    if (typeof country._id === "string") {
+        return compact(country._id);
+    }
+
+    return compact(country._id?.$oid);
+};
+
 export async function fetchCountries() {
     const response = await fetch(`${backendUrl}/api/countries`);
     const payload = await response.json().catch(() => null);
@@ -36,13 +83,20 @@ export function normalizeCountry(country, index) {
     const visa = country.remoteWorkVisa || {};
     const internetUse = country.internetUse || {};
     const population = country.population || {};
-    const id = compact(country.id) || compact(country._id?.$oid) || compact(country._id);
+    const mongoId = getMongoId(country);
+    const slug = compact(country.id);
+    const id = mongoId || slug || compact(country.name).toLowerCase().replace(/\s+/g, "-");
+    const accentIndex = Number.isInteger(index) ? index : 0;
 
     return {
         id,
+        slug,
         name: compact(country.name),
         officialName: compact(country.officialName),
-        flagEmoji: compact(country.flagEmoji),
+        flagEmoji: getCountryFlag(country),
+        flagImageUrl: compact(country.flagImageUrl),
+        flagSvgUrl: compact(country.flagSvgUrl),
+        flagVisualUrl: getCountryFlagImageUrl(country),
         region: compact(country.region),
         subregion: compact(country.subregion),
         capital: compact(country.capital?.name) || "Capital review pending",
@@ -64,6 +118,6 @@ export function normalizeCountry(country, index) {
         maxStayMonths: visa.maxInitialStayMonths || null,
         verifiedOn: compact(country.recordVerifiedOn || visa.verifiedOn),
         sourceUrl: compact(visa.officialInfoUrl || internetUse.sourceUrl),
-        accent: ["bg-[#36d7ff]", "bg-[#a3ff6f]", "bg-[#ff7896]"][index % 3],
+        accent: ["bg-[#36d7ff]", "bg-[#a3ff6f]", "bg-[#ff7896]"][accentIndex % 3],
     };
 }

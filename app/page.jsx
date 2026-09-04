@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { Button, Card, Chip, ProgressCircle, Slider } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
+import CountryFlagBanner from "./components/CountryFlagBanner";
 import { authClient } from "./lib/auth-client";
 import { fetchCountries } from "./lib/countries";
-import { features } from "./lib/features";
 import { fetchProfile, recommendCountries } from "./lib/recommender";
 
 export default function Home() {
@@ -13,7 +13,6 @@ export default function Home() {
   const [internetWeight, setInternetWeight] = useState(88);
   const [countries, setCountries] = useState([]);
   const [profile, setProfile] = useState(null);
-  const [selectedCountryId, setSelectedCountryId] = useState("");
   const [loadStatus, setLoadStatus] = useState({ type: "loading", message: "" });
 
   useEffect(() => {
@@ -30,7 +29,6 @@ export default function Home() {
 
         const nextCountries = countryResult.value;
         setCountries(nextCountries);
-        setSelectedCountryId(nextCountries[0]?.id || "");
         setProfile(profileResult.status === "fulfilled" ? profileResult.value : null);
         setLoadStatus({ type: "ready", message: "" });
       } catch (error) {
@@ -45,17 +43,20 @@ export default function Home() {
   }, []);
 
   const rankedCountries = useMemo(() => {
-    return recommendCountries(countries, profile, {
+    return recommendCountries(countries, profile);
+  }, [countries, profile]);
+
+  const topMatchCountries = useMemo(() => {
+    return recommendCountries(countries, null, {
       visa: visaWeight,
       internet: internetWeight,
+      region: 0,
+      schedule: 0,
+      lifestyle: 0,
     });
-  }, [countries, internetWeight, profile, visaWeight]);
+  }, [countries, internetWeight, visaWeight]);
 
-  const selectedCountry =
-    rankedCountries.find((country) => country.id === selectedCountryId) ||
-    rankedCountries[0] ||
-    null;
-  const topCountry = rankedCountries[0] || null;
+  const topCountry = topMatchCountries[0] || null;
   const previewCountries = rankedCountries.slice(0, 6);
   const verifiedCountries = rankedCountries.filter((country) => country.verifiedOn).length;
   const visaRoutes = rankedCountries.filter((country) => country.hasVisaRoute).length;
@@ -95,10 +96,8 @@ export default function Home() {
           <DecisionPanel
             internetWeight={internetWeight}
             loadStatus={loadStatus}
-            rankedCountries={rankedCountries}
-            selectedCountry={selectedCountry}
+            rankedCountries={topMatchCountries}
             setInternetWeight={setInternetWeight}
-            setSelectedCountryId={setSelectedCountryId}
             setVisaWeight={setVisaWeight}
             topCountry={topCountry}
             visaWeight={visaWeight}
@@ -135,12 +134,13 @@ export default function Home() {
               className="group flex h-full min-h-[392px] w-full min-w-0 items-stretch justify-start overflow-hidden rounded-[22px] border border-[#233b57] bg-[linear-gradient(145deg,rgba(20,39,64,.9),rgba(11,26,44,.9))] p-0 text-left text-white shadow-[0_24px_70px_rgba(0,0,0,.24)] hover:-translate-y-2 hover:border-[#36d7ff]/70 sm:min-h-[372px]"
             >
               <span className="flex h-full w-full min-w-0 flex-col">
-                <span className={`block h-20 shrink-0 ${country.accent} opacity-85 transition sm:h-24`} />
+                <CountryFlagBanner country={country} />
                 <span className="flex min-w-0 flex-1 flex-col p-5">
                   <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                     <span className="min-w-0">
-                      <span className="block min-w-0 break-words text-xl font-black leading-tight sm:text-2xl">
-                        {country.flagEmoji ? `${country.flagEmoji} ` : ""}{country.name}
+                      <span className="flex min-w-0 items-start gap-2 break-words text-xl font-black leading-tight sm:text-2xl">
+                        <span className="shrink-0">{country.flagEmoji}</span>
+                        <span className="min-w-0 break-words">{country.name}</span>
                       </span>
                       <span className="mt-1 block min-w-0 truncate text-sm font-semibold text-[#8fa8c2]">{country.region || country.subregion || country.officialName}</span>
                     </span>
@@ -160,32 +160,6 @@ export default function Home() {
                   </span>
                 </span>
               </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section id="features" className="mx-auto grid max-w-7xl gap-6 px-4 py-14 sm:px-6 lg:grid-cols-[.8fr_1.2fr] lg:py-16">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[.18em] text-[#a3ff6f]">Core platform</p>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Built around relocation decisions.</h2>
-          <p className="mt-4 leading-7 text-[#8fa8c2]">
-            Country records now come from MongoDB, while authentication and profile
-            preferences now power weighted destination recommendations.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {features.map((feature) => (
-            <Link key={feature.id} href="/features" className="block h-full">
-            <Card className="h-full rounded-2xl border border-[#233b57] bg-[#0e1e32] p-5 text-white hover:-translate-y-1 hover:border-[#36d7ff]/70">
-              <Card.Header className="p-0">
-                <Chip color="primary" variant="flat" className="bg-[#36d7ff]/10 text-xs font-black text-[#36d7ff]">FEATURE {feature.number}</Chip>
-              </Card.Header>
-              <Card.Content className="p-0 pt-3">
-                <Card.Title className="text-lg font-black text-white">{feature.title}</Card.Title>
-                <Card.Description className="mt-2 text-sm leading-6 text-[#8fa8c2]">{feature.summary}</Card.Description>
-              </Card.Content>
-            </Card>
             </Link>
           ))}
         </div>
@@ -243,7 +217,7 @@ function BuildProfileButton() {
   );
 }
 
-function DecisionPanel({ internetWeight, loadStatus, rankedCountries, selectedCountry, setInternetWeight, setSelectedCountryId, setVisaWeight, topCountry, visaWeight }) {
+function DecisionPanel({ internetWeight, loadStatus, rankedCountries, setInternetWeight, setVisaWeight, topCountry, visaWeight }) {
   if (loadStatus.type === "loading") {
     return (
       <Card className="grid min-h-[520px] place-items-center rounded-[28px] border border-[#233b57] bg-[linear-gradient(135deg,#0b1c31,#112943_55%,#173641)] p-6 text-center text-white shadow-[0_24px_70px_rgba(0,0,0,.32)]">
@@ -256,7 +230,7 @@ function DecisionPanel({ internetWeight, loadStatus, rankedCountries, selectedCo
     );
   }
 
-  if (!topCountry || !selectedCountry) {
+  if (!topCountry) {
     return <StatusCard message={loadStatus.message || "No country records were found in MongoDB."} />;
   }
 
@@ -264,13 +238,16 @@ function DecisionPanel({ internetWeight, loadStatus, rankedCountries, selectedCo
     <Card className="relative min-h-[520px] rounded-[28px] border border-[#233b57] bg-[linear-gradient(135deg,#0b1c31,#112943_55%,#173641)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.32)] sm:p-5 lg:min-h-[560px]">
       <div className="absolute inset-4 rounded-[24px] border border-[#284663] bg-[radial-gradient(circle_at_center,rgba(54,215,255,.18),transparent_46%)]" />
       <div className="relative grid gap-4">
-        <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-[#07111f]/75 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div className="flex min-w-0 flex-col gap-4 rounded-2xl border border-white/10 bg-[#07111f]/75 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[.16em] text-[#8fa8c2]">Top match</p>
-            <h2 className="mt-1 text-2xl font-black sm:text-3xl">
-              {topCountry.flagEmoji ? `${topCountry.flagEmoji} ` : ""}{topCountry.name}
+            <h2 className="mt-1 flex min-w-0 items-center gap-2 text-2xl font-black leading-tight sm:text-3xl">
+              <span className="shrink-0">{topCountry.flagEmoji}</span>
+              <span className="min-w-0 truncate">{topCountry.name}</span>
             </h2>
-            <p className="mt-2 text-sm font-semibold text-[#8fa8c2]">{topCountry.capital} / {topCountry.region || "Region pending"}</p>
+            <p className="mt-2 min-w-0 break-words text-sm font-semibold leading-6 text-[#8fa8c2]">
+              {topCountry.capital} / {topCountry.region || "Region pending"}
+            </p>
           </div>
           <ProgressCircle value={topCountry.match} className="grid size-24 shrink-0 place-items-center text-[#36d7ff]">
             <ProgressCircle.Track className="size-24 -rotate-90">
@@ -281,21 +258,36 @@ function DecisionPanel({ internetWeight, loadStatus, rankedCountries, selectedCo
           </ProgressCircle>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          {rankedCountries.slice(0, 3).map((country) => (
-            <Button
-              key={country.id}
-              type="button"
-              onPress={() => setSelectedCountryId(country.id)}
-              className={`h-auto justify-start rounded-2xl border p-4 text-left text-white hover:-translate-y-1 ${selectedCountry.id === country.id ? "border-[#36d7ff] bg-[#36d7ff]/10" : "border-[#233b57] bg-[#0e1e32]/90"}`}
-            >
-              <span>
-                <strong>{country.name}</strong>
-                <span className="mt-2 block text-sm text-[#8fa8c2]">{formatPercent(country.internetPercent)} internet</span>
-                <Chip color="success" variant="flat" className="mt-3 bg-[#a3ff6f]/10 text-xs font-black text-[#a3ff6f]">{country.match}% fit</Chip>
+        <div className="min-w-0 rounded-2xl border border-[#233b57] bg-[#07111f]/65 p-3">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-black text-white">Live top match</p>
+            <p className="text-xs font-bold text-[#8fa8c2]">Visa and internet weighted across {rankedCountries.length} countries</p>
+          </div>
+          <div className="rounded-2xl border border-[#36d7ff]/50 bg-[#0e1e32]/95 p-4 text-white shadow-[0_18px_45px_rgba(54,215,255,.12)]">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <strong className="flex min-w-0 flex-1 items-center gap-2 text-base font-black leading-6" title={topCountry.name}>
+                <span className="shrink-0">{topCountry.flagEmoji}</span>
+                <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{topCountry.name}</span>
+              </strong>
+              <span className="shrink-0 rounded-full bg-[#a3ff6f]/10 px-3 py-1.5 text-sm font-black text-[#a3ff6f]">
+                {topCountry.match}%
               </span>
-            </Button>
-          ))}
+            </div>
+            <div className="mt-4 grid gap-2 text-sm font-semibold leading-6 text-[#8fa8c2] sm:grid-cols-2">
+              <span className="min-w-0 truncate rounded-xl bg-[#07111f]/70 px-3 py-2" title={topCountry.capital}>
+                {topCountry.capital}
+              </span>
+              <span className="min-w-0 truncate rounded-xl bg-[#07111f]/70 px-3 py-2" title={topCountry.region || topCountry.subregion || "Region pending"}>
+                {topCountry.region || topCountry.subregion || "Region pending"}
+              </span>
+              <span className="min-w-0 truncate rounded-xl bg-[#07111f]/70 px-3 py-2" title={`${formatPercent(topCountry.internetPercent)} internet`}>
+                {formatPercent(topCountry.internetPercent)} internet
+              </span>
+              <span className="min-w-0 truncate rounded-xl bg-[#07111f]/70 px-3 py-2" title={topCountry.hasVisaRoute ? "Visa route available" : topCountry.visaStatus || "Visa review needed"}>
+                {topCountry.hasVisaRoute ? "Visa route available" : topCountry.visaStatus || "Visa review needed"}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-[#233b57] bg-[#0e1e32]/90 p-5">
@@ -308,15 +300,15 @@ function DecisionPanel({ internetWeight, loadStatus, rankedCountries, selectedCo
         </div>
 
         <div className="rounded-2xl border border-[#36d7ff]/30 bg-[#07111f]/80 p-4">
-          <p className="text-xs font-black uppercase tracking-[.16em] text-[#36d7ff]">Selected country</p>
+          <p className="text-xs font-black uppercase tracking-[.16em] text-[#36d7ff]">Top match country</p>
           <p className="mt-2 text-sm leading-6 text-[#c2d7e9]">
-            {selectedCountry.name} lists {selectedCountry.capital} as its capital,
-            {selectedCountry.currency ? ` uses ${selectedCountry.currency},` : ""}
-            {selectedCountry.timeZones.length ? ` includes ${selectedCountry.timeZones.length} time zone${selectedCountry.timeZones.length === 1 ? "" : "s"},` : ""}
-            and has {selectedCountry.hasVisaRoute ? "a dedicated remote-work visa route" : "a visa route that needs review"}.
+            {topCountry.name} lists {topCountry.capital} as its capital,
+            {topCountry.currency ? ` uses ${topCountry.currency},` : ""}
+            {topCountry.timeZones.length ? ` includes ${topCountry.timeZones.length} time zone${topCountry.timeZones.length === 1 ? "" : "s"},` : ""}
+            and has {topCountry.hasVisaRoute ? "a dedicated remote-work visa route" : "a visa route that needs review"}.
           </p>
           <div className="mt-4 grid gap-2">
-            {(selectedCountry.recommender?.reasons || []).map((reason) => (
+            {(topCountry.recommender?.reasons || []).map((reason) => (
               <div key={reason} className="rounded-xl border border-[#233b57] bg-[#0e1e32] px-3 py-2 text-xs font-bold leading-5 text-[#a9c2d9]">
                 {reason}
               </div>

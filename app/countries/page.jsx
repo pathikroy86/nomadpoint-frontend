@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button, Card, Chip, Input } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
+import CountryFlagBanner from "../components/CountryFlagBanner";
 import { fetchCountries } from "../lib/countries";
 import { fetchProfile, recommendCountries } from "../lib/recommender";
 
@@ -152,8 +153,8 @@ export default function CountriesPage() {
         ) : null}
 
         <div className="mt-8 grid auto-rows-fr gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {paginatedCountries.map((country, index) => (
-            <CountryCard key={country.id} country={country} index={index} />
+          {paginatedCountries.map((country) => (
+            <CountryCard key={country.id} country={country} />
           ))}
         </div>
 
@@ -169,20 +170,20 @@ export default function CountriesPage() {
   );
 }
 
-function CountryCard({ country, index }) {
-  const accents = ["bg-[#36d7ff]", "bg-[#a3ff6f]", "bg-[#ff7896]"];
+function CountryCard({ country }) {
   const remoteCities = country.remoteCities?.slice(0, 3) || [];
   const languages = country.languages?.slice(0, 2) || [];
 
   return (
-    <Link href={`/countries/${country.id}`} className="block h-full min-w-0">
+    <Link href={`/countries/${country.id}`} className="group block h-full min-w-0">
       <Card className="flex h-full min-h-[390px] min-w-0 overflow-hidden rounded-[22px] border border-[#233b57] bg-[linear-gradient(145deg,rgba(20,39,64,.9),rgba(11,26,44,.9))] text-white shadow-[0_24px_70px_rgba(0,0,0,.24)] hover:-translate-y-2 hover:border-[#36d7ff]/70">
-      <div className={`h-20 shrink-0 ${accents[index % accents.length]} opacity-85`} />
+      <CountryFlagBanner country={country} />
       <div className="flex min-w-0 flex-1 flex-col p-5">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
           <div className="min-w-0">
-            <h2 className="break-words text-xl font-black leading-tight sm:text-2xl">
-              {country.flagEmoji ? `${country.flagEmoji} ` : ""}{country.name}
+            <h2 className="flex min-w-0 items-start gap-2 break-words text-xl font-black leading-tight sm:text-2xl">
+              <span className="shrink-0">{country.flagEmoji}</span>
+              <span className="min-w-0 break-words">{country.name}</span>
             </h2>
             <p className="mt-1 truncate text-sm font-semibold text-[#8fa8c2]">{country.region || country.subregion || country.officialName}</p>
           </div>
