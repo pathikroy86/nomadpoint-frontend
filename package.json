@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "vercel-build": "npm run build",
     "lint": "eslint"
+  },
+  "engines": {
+    "node": ">=20.18.0"
   },
   "dependencies": {
     "@better-auth/mongo-adapter": "^1.7.2",

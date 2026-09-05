@@ -7,6 +7,10 @@ import { mongodbAdapter } from "better-auth/adapters/mongodb";
 dns.setServers(["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]);
 
 const uri = process.env.MONGODB_DIRECT_URI || process.env.MONGODB_URI;
+const appUrl =
+    process.env.BETTER_AUTH_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
 if (!uri) {
     throw new Error("MONGODB_URI is not defined");
@@ -47,9 +51,16 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 }
 
 export const auth = betterAuth({
-    baseURL: process.env.BETTER_AUTH_URL,
+    baseURL: appUrl,
     secret: process.env.BETTER_AUTH_SECRET,
-    trustedOrigins: [process.env.BETTER_AUTH_URL, "http://localhost:3002"].filter(Boolean),
+    trustedOrigins: [
+        appUrl,
+        process.env.BETTER_AUTH_URL,
+        process.env.NEXT_PUBLIC_APP_URL,
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+    ].filter(Boolean),
     database: mongodbAdapter(db, { client }),
     emailAndPassword: {
         enabled: true,

@@ -1,5 +1,7 @@
 import { auth, db, ensureDbConnected } from "../../lib/auth";
 
+export const runtime = "nodejs";
+
 const allowedRoles = new Set(["nomad", "expert"]);
 const editableFields = [
     "role",

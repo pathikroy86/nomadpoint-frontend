@@ -1,4 +1,4 @@
-const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001").replace(/\/$/, "");
 
 const compact = (value) => String(value || "").trim();
 

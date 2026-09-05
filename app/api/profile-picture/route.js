@@ -1,5 +1,7 @@
 import { auth } from "../../lib/auth";
 
+export const runtime = "nodejs";
+
 const maxPictureSize = 5_000_000;
 
 async function getSession(request) {
